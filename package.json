@@ -1,0 +1,27 @@
+{
+  "name": "growi-plugin-lsxfull",
+  "version": "1.0.0",
+  "description": "GROWI plugin to list subpages with content inline",
+  "type": "module",
+  "keywords": ["growi", "growi-plugin"],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "unified": "^11.0.0",
+    "unist-util-visit": "^5.0.0",
+    "vite": "^6.0.4"
+  },
+  "growiPlugin": {
+    "schemaVersion": "4",
+    "types": ["script"]
+  }
+}
