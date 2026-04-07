@@ -1,5 +1,6 @@
 import type { Plugin } from 'unified';
 import { visit } from 'unist-util-visit';
+import { marked } from 'marked';
 
 interface GrowiNode {
   name: string;
@@ -7,6 +8,7 @@ interface GrowiNode {
   attributes: Record<string, string>;
   children: unknown[];
   value: string;
+  data?: Record<string, unknown>;
 }
 
 interface PageItem {
@@ -21,10 +23,6 @@ interface PageDetail {
       body?: string;
     };
   };
-}
-
-interface PageListResponse {
-  pages: PageItem[];
 }
 
 function escapeHtml(s: string): string {
@@ -43,24 +41,18 @@ function stripFrontmatter(body: string): string {
 }
 
 async function resolveCurrentPagePath(): Promise<string> {
-  // Growi URLs use page IDs: /64a1b2c3... — need to resolve to actual path
   const pathname = decodeURIComponent(window.location.pathname).replace(/^\//, '');
-  console.log('[lsxfull] resolving pathname:', pathname);
 
-  // If it looks like a MongoDB ObjectID (24 hex chars), fetch the page to get path
+  // Growi URLs use page IDs (24 hex chars) — resolve to actual path
   if (/^[0-9a-f]{24}$/.test(pathname)) {
-    console.log('[lsxfull] pathname is a pageId, fetching page to resolve path');
     const res = await fetch(`/_api/v3/page?pageId=${pathname}`, { credentials: 'same-origin' });
     if (res.ok) {
       const data = await res.json();
       const path = data.page?.path;
-      console.log('[lsxfull] resolved pageId to path:', path);
       if (path) return path;
     }
-    console.error('[lsxfull] failed to resolve pageId:', pathname);
   }
 
-  // Otherwise assume it's already a path
   return '/' + pathname;
 }
 
@@ -68,12 +60,9 @@ async function renderLsxFull(el: HTMLElement): Promise<void> {
   const depth = parseInt(el.dataset.depth || '1', 10);
   const reverse = el.dataset.reverse === 'true';
   const pathAttr = el.dataset.path || '';
-
-  console.log('[lsxfull] renderLsxFull called, pathAttr:', pathAttr, 'depth:', depth, 'reverse:', reverse);
-
   const fetchOpts: RequestInit = { credentials: 'same-origin' };
 
-  // Determine base path
+  // Resolve base path
   let basePath: string;
   if (pathAttr === '.' || pathAttr === '') {
     basePath = await resolveCurrentPagePath();
@@ -83,19 +72,19 @@ async function renderLsxFull(el: HTMLElement): Promise<void> {
     const currentPath = await resolveCurrentPagePath();
     basePath = currentPath.replace(/\/$/, '') + '/' + pathAttr;
   }
-  console.log('[lsxfull] resolved basePath:', basePath);
 
   try {
-    const listUrl = `/_api/v3/pages/list?path=${encodeURIComponent(basePath)}&limit=200`;
-    console.log('[lsxfull] fetching list:', listUrl);
-    const listRes = await fetch(`/_api/v3/pages/list?path=${encodeURIComponent(basePath)}&limit=200`, fetchOpts);
+    // List subpages
+    const listRes = await fetch(
+      `/_api/v3/pages/list?path=${encodeURIComponent(basePath)}&limit=200`,
+      fetchOpts,
+    );
     if (!listRes.ok) {
-      el.innerHTML = `<p style="color:red">lsxfull: failed to list pages (${listRes.status})</p>`;
+      el.innerHTML = `<p style="color:#c00">lsxfull: failed to list pages (${listRes.status})</p>`;
       return;
     }
     const listJson = await listRes.json() as { pages: PageItem[] };
     let pages = listJson.pages || [];
-    console.log('[lsxfull] found', pages.length, 'pages');
 
     // Filter by depth
     if (depth > 0) {
@@ -104,7 +93,6 @@ async function renderLsxFull(el: HTMLElement): Promise<void> {
         const pageDepth = p.path.split('/').filter(Boolean).length;
         return pageDepth - baseDepth <= depth;
       });
-      console.log('[lsxfull] after depth filter:', pages.length, 'pages');
     }
 
     // Sort by path
@@ -119,80 +107,73 @@ async function renderLsxFull(el: HTMLElement): Promise<void> {
     // Fetch and render each page
     let html = '';
     for (const page of pages) {
-      console.log('[lsxfull] fetching detail for', page.path, page._id);
       const detailRes = await fetch(`/_api/v3/page?pageId=${page._id}`, fetchOpts);
-      console.log('[lsxfull] detail response:', detailRes.status);
-      if (!detailRes.ok) continue;
+      if (!detailRes.ok) {
+        console.warn('[lsxfull] failed to fetch', page.path, detailRes.status);
+        continue;
+      }
       const detailJson = await detailRes.json() as PageDetail;
       const rawBody = detailJson.page.revision?.body || '';
       const body = stripFrontmatter(rawBody);
       const label = page.path.split('/').pop() || page.path;
-      console.log('[lsxfull] page', label, 'body length:', body.length);
+      const renderedBody = marked.parse(body) as string;
 
-      html += `<div class="lsxfull-entry" style="margin-bottom:1.5em;border-bottom:1px solid #eee;padding-bottom:1em;">`;
+      html += `<div style="margin-bottom:1.5em;border-bottom:1px solid #e0e0e0;padding-bottom:1em;">`;
       html += `<h3 style="margin:0 0 0.5em;"><a href="${escapeHtml(page.path)}">${escapeHtml(label)}</a></h3>`;
-      html += `<div class="lsxfull-body" style="white-space:pre-wrap;font-size:0.95em;">${escapeHtml(body)}</div>`;
+      html += `<div style="font-size:0.95em;">${renderedBody}</div>`;
       html += `</div>`;
     }
     el.innerHTML = html;
   } catch (err) {
     console.error('[lsxfull] error:', err);
-    el.innerHTML = `<p style="color:red">lsxfull: ${escapeHtml(String(err))}</p>`;
+    el.innerHTML = `<p style="color:#c00">lsxfull: ${escapeHtml(String(err))}</p>`;
   }
 }
 
 export const plugin: Plugin = function () {
-  console.log('[lsxfull] remark plugin initialized');
   return (tree) => {
-    console.log('[lsxfull] visiting tree');
     visit(tree, (node) => {
       const n = node as unknown as GrowiNode;
-      if (n.type === 'leafGrowiPluginDirective') {
-        console.log('[lsxfull] found directive:', n.name, n.type, JSON.stringify(n.attributes));
-      }
       if (n.type !== 'leafGrowiPluginDirective' || n.name !== 'lsxfull') return;
 
-      console.log('[lsxfull] matched lsxfull directive');
       const attrs = n.attributes || {};
-      // First positional arg is the path (stored as a key with empty value)
       const positionalKeys = Object.keys(attrs).filter(k => attrs[k] === '' || attrs[k] == null);
       const path = positionalKeys[0] || '.';
       const depth = attrs.depth || '1';
       const reverse = attrs.reverse === 'true' ? 'true' : 'false';
 
       const uid = `lsxfull-${Math.random().toString(36).substring(2, 10)}`;
-      console.log('[lsxfull] creating element', uid);
+
+      // Replace node content — clear children/value to prevent directive text from rendering
+      n.children = [];
+      (n as any).value = '';
 
       // Use hName/hProperties so remark-rehype creates a real DOM element
-      (n as any).data = {
+      n.data = {
         hName: 'div',
         hProperties: {
           id: uid,
           'data-path': path,
           'data-depth': depth,
           'data-reverse': reverse,
-          style: 'padding:1em;background:#f9f9f9;border-radius:4px;',
         },
-        hChildren: [{ type: 'text', value: `[lsxfull v1.0.1] Loading path="${path}"...` }],
+        hChildren: [{ type: 'text', value: 'Loading...' }],
       };
 
-      // Use MutationObserver to detect when element appears in DOM
+      // Detect element in DOM via MutationObserver, then render
       if (typeof MutationObserver !== 'undefined') {
         const observer = new MutationObserver((_mutations, obs) => {
           const el = document.getElementById(uid);
           if (el) {
             obs.disconnect();
-            console.log('[lsxfull] element found via MutationObserver');
             renderLsxFull(el);
           }
         });
         observer.observe(document.body, { childList: true, subtree: true });
-        // Fallback timeout
         setTimeout(() => {
           observer.disconnect();
           const el = document.getElementById(uid);
           if (el && el.textContent?.includes('Loading')) {
-            console.log('[lsxfull] fallback timeout, calling renderLsxFull');
             renderLsxFull(el);
           }
         }, 5000);

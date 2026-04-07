@@ -3,12 +3,16 @@
   "version": "1.0.0",
   "description": "GROWI plugin to list subpages with content inline",
   "type": "module",
-  "keywords": ["growi", "growi-plugin"],
+  "keywords": [
+    "growi",
+    "growi-plugin"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build"
   },
   "dependencies": {
+    "marked": "^18.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
@@ -22,6 +26,8 @@
   },
   "growiPlugin": {
     "schemaVersion": "4",
-    "types": ["script"]
+    "types": [
+      "script"
+    ]
   }
 }
