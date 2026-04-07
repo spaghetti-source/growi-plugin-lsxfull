@@ -1,5 +1,5 @@
 import config from './package.json';
-import { LsxFull } from './src/LsxFull';
+import { renderInto } from './src/LsxFull';
 
 declare const growiFacade: {
   markdownRenderer?: {
@@ -12,10 +12,22 @@ declare const growiFacade: {
   };
 };
 
-function wrapCode(OriginalCode: React.FunctionComponent<any>) {
+function wrapCode(OriginalCode: any) {
   return function LsxFullCodeWrapper(props: any) {
     if (props.className === 'language-lsxfull') {
-      return LsxFull({ code: props.children as string });
+      // Return a plain span; populate async after React mounts it
+      const uid = `lsxfull-${Math.random().toString(36).substring(2, 10)}`;
+      setTimeout(() => {
+        const el = document.getElementById(uid);
+        if (el) renderInto(el, props.children as string);
+      }, 0);
+      return OriginalCode({
+        ...props,
+        className: '',
+        children: `Loading...`,
+        // Inject id via wrapper
+        id: uid,
+      });
     }
     return OriginalCode(props);
   };

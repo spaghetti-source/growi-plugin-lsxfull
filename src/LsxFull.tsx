@@ -1,4 +1,3 @@
-import React, { useEffect, useRef, useState } from 'react';
 import { marked } from 'marked';
 
 interface PageItem {
@@ -108,26 +107,15 @@ async function fetchContent(opts: Record<string, string>): Promise<string> {
   return html;
 }
 
-export function LsxFull({ code }: { code: string }): React.ReactElement {
-  const ref = useRef<HTMLDivElement>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const opts = parseOptions(code);
-    fetchContent(opts).then((html) => {
-      if (ref.current) {
-        ref.current.innerHTML = html;
-      }
-      setLoading(false);
-    }).catch((err) => {
-      if (ref.current) {
-        ref.current.innerHTML = `<p style="color:#c00">lsxfull: ${escapeHtml(String(err))}</p>`;
-      }
-      setLoading(false);
-    });
-  }, [code]);
-
-  return React.createElement('div', { ref, className: 'lsxfull' },
-    loading ? 'Loading...' : null
-  );
+/**
+ * Populate an element with lsxfull content.
+ * Called from the component override — no React dependency needed.
+ */
+export function renderInto(el: HTMLElement, code: string): void {
+  const opts = parseOptions(code);
+  fetchContent(opts).then((html) => {
+    el.innerHTML = html;
+  }).catch((err) => {
+    el.innerHTML = `<p style="color:#c00">lsxfull: ${escapeHtml(String(err))}</p>`;
+  });
 }
