@@ -118,11 +118,17 @@ async function renderLsxFull(el: HTMLElement): Promise<void> {
 }
 
 export const plugin: Plugin = function () {
+  console.log('[lsxfull] remark plugin initialized');
   return (tree) => {
+    console.log('[lsxfull] visiting tree');
     visit(tree, (node) => {
       const n = node as unknown as GrowiNode;
+      if (n.type === 'leafGrowiPluginDirective') {
+        console.log('[lsxfull] found directive:', n.name, n.type, JSON.stringify(n.attributes));
+      }
       if (n.type !== 'leafGrowiPluginDirective' || n.name !== 'lsxfull') return;
 
+      console.log('[lsxfull] matched lsxfull directive');
       const attrs = n.attributes || {};
       // First positional arg is the path (stored as a key with empty value)
       const positionalKeys = Object.keys(attrs).filter(k => attrs[k] === '' || attrs[k] == null);
@@ -135,11 +141,22 @@ export const plugin: Plugin = function () {
       n.value = `<div id="lsxfull-${uid}" data-path="${escapeHtml(path)}" data-depth="${escapeHtml(depth)}" data-reverse="${reverse}">Loading subpages...</div>`;
 
       // Schedule async rendering via polling for DOM element
+      console.log('[lsxfull] scheduling DOM poll for', `lsxfull-${uid}`);
+      let pollCount = 0;
       const intervalId = setInterval(() => {
+        pollCount++;
         const el = document.getElementById(`lsxfull-${uid}`);
+        if (pollCount <= 3 || el) {
+          console.log('[lsxfull] poll #' + pollCount, 'found:', !!el);
+        }
         if (el) {
           clearInterval(intervalId);
+          console.log('[lsxfull] element found, calling renderLsxFull');
           renderLsxFull(el);
+        }
+        if (pollCount > 100) {
+          clearInterval(intervalId);
+          console.error('[lsxfull] gave up polling after 10s');
         }
       }, 100);
     });

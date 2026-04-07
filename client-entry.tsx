@@ -13,9 +13,14 @@ declare const growiFacade: {
 };
 
 const activate = (): void => {
-  if (growiFacade == null || growiFacade.markdownRenderer == null) return;
+  console.log('[lsxfull] activate called');
+  if (growiFacade == null || growiFacade.markdownRenderer == null) {
+    console.log('[lsxfull] growiFacade not available');
+    return;
+  }
 
   const { optionsGenerators } = growiFacade.markdownRenderer;
+  console.log('[lsxfull] registering remark plugin');
 
   // Register for view rendering
   const originalViewOptions = optionsGenerators.customGenerateViewOptions;
