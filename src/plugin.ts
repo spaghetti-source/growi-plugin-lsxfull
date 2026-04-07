@@ -138,7 +138,7 @@ export const plugin: Plugin = function () {
 
       const uid = Math.random().toString(36).substring(2, 10);
       n.type = 'html';
-      n.value = `<div id="lsxfull-${uid}" data-path="${escapeHtml(path)}" data-depth="${escapeHtml(depth)}" data-reverse="${reverse}">Loading subpages...</div>`;
+      n.value = `<div id="lsxfull-${uid}" data-path="${escapeHtml(path)}" data-depth="${escapeHtml(depth)}" data-reverse="${reverse}">[lsxfull v1.0.0-debug] Loading subpages for path="${path}" depth=${depth} reverse=${reverse}...</div>`;
 
       // Schedule async rendering via polling for DOM element
       console.log('[lsxfull] scheduling DOM poll for', `lsxfull-${uid}`);
