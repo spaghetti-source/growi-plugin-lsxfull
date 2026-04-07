@@ -86,6 +86,9 @@ async function fetchContent(opts: Record<string, string>): Promise<string> {
     });
   }
 
+  // Exclude the current page itself from results
+  pages = pages.filter((p: PageItem) => p.path !== basePath);
+
   pages.sort((a: PageItem, b: PageItem) => a.path.localeCompare(b.path));
   if (reverse) pages.reverse();
 
