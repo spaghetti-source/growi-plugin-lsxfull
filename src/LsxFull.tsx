@@ -42,11 +42,14 @@ function escapeHtml(s: string): string {
 
 async function resolveCurrentPagePath(): Promise<string> {
   const pathname = decodeURIComponent(window.location.pathname).replace(/^\//, '');
+  console.log('[lsxfull] resolveCurrentPagePath, pathname:', pathname, 'isObjectId:', /^[0-9a-f]{24}$/.test(pathname));
   if (/^[0-9a-f]{24}$/.test(pathname)) {
     const res = await fetch(`/_api/v3/page?pageId=${pathname}`, { credentials: 'same-origin' });
+    console.log('[lsxfull] page resolve response:', res.status);
     if (res.ok) {
       const data = await res.json();
       const path = data.page?.path;
+      console.log('[lsxfull] resolved to path:', path);
       if (path) return path;
     }
   }
@@ -69,14 +72,15 @@ async function fetchContent(opts: Record<string, string>): Promise<string> {
     basePath = currentPath.replace(/\/$/, '') + '/' + pathAttr;
   }
 
-  const listRes = await fetch(
-    `/_api/v3/pages/list?path=${encodeURIComponent(basePath)}&limit=200`,
-    fetchOpts,
-  );
+  const listUrl = `/_api/v3/pages/list?path=${encodeURIComponent(basePath)}&limit=200`;
+  console.log('[lsxfull] fetching list:', listUrl);
+  const listRes = await fetch(listUrl, fetchOpts);
+  console.log('[lsxfull] list response:', listRes.status);
   if (!listRes.ok) return `<p style="color:#c00">lsxfull: failed to list pages (${listRes.status})</p>`;
 
   const listJson = await listRes.json() as { pages: PageItem[] };
   let pages = listJson.pages || [];
+  console.log('[lsxfull] total pages from API:', pages.length, 'paths:', pages.map((p: PageItem) => p.path));
 
   if (depth > 0) {
     const baseDepth = basePath.split('/').filter(Boolean).length;
@@ -112,10 +116,14 @@ async function fetchContent(opts: Record<string, string>): Promise<string> {
  * Called from the component override — no React dependency needed.
  */
 export function renderInto(el: HTMLElement, code: string): void {
+  console.log('[lsxfull] renderInto called, code:', code.substring(0, 100));
   const opts = parseOptions(code);
+  console.log('[lsxfull] parsed options:', JSON.stringify(opts));
   fetchContent(opts).then((html) => {
+    console.log('[lsxfull] fetchContent resolved, html length:', html.length, 'preview:', html.substring(0, 100));
     el.innerHTML = html;
   }).catch((err) => {
+    console.error('[lsxfull] fetchContent error:', err);
     el.innerHTML = `<p style="color:#c00">lsxfull: ${escapeHtml(String(err))}</p>`;
   });
 }
