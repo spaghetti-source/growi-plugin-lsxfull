@@ -136,29 +136,43 @@ export const plugin: Plugin = function () {
       const depth = attrs.depth || '1';
       const reverse = attrs.reverse === 'true' ? 'true' : 'false';
 
-      const uid = Math.random().toString(36).substring(2, 10);
-      n.type = 'html';
-      n.value = `<div id="lsxfull-${uid}" data-path="${escapeHtml(path)}" data-depth="${escapeHtml(depth)}" data-reverse="${reverse}">[lsxfull v1.0.0-debug] Loading subpages for path="${path}" depth=${depth} reverse=${reverse}...</div>`;
+      const uid = `lsxfull-${Math.random().toString(36).substring(2, 10)}`;
+      console.log('[lsxfull] creating element', uid);
 
-      // Schedule async rendering via polling for DOM element
-      console.log('[lsxfull] scheduling DOM poll for', `lsxfull-${uid}`);
-      let pollCount = 0;
-      const intervalId = setInterval(() => {
-        pollCount++;
-        const el = document.getElementById(`lsxfull-${uid}`);
-        if (pollCount <= 3 || el) {
-          console.log('[lsxfull] poll #' + pollCount, 'found:', !!el);
-        }
-        if (el) {
-          clearInterval(intervalId);
-          console.log('[lsxfull] element found, calling renderLsxFull');
-          renderLsxFull(el);
-        }
-        if (pollCount > 100) {
-          clearInterval(intervalId);
-          console.error('[lsxfull] gave up polling after 10s');
-        }
-      }, 100);
+      // Use hName/hProperties so remark-rehype creates a real DOM element
+      (n as any).data = {
+        hName: 'div',
+        hProperties: {
+          id: uid,
+          'data-path': path,
+          'data-depth': depth,
+          'data-reverse': reverse,
+          style: 'padding:1em;background:#f9f9f9;border-radius:4px;',
+        },
+        hChildren: [{ type: 'text', value: `[lsxfull v1.0.1] Loading path="${path}"...` }],
+      };
+
+      // Use MutationObserver to detect when element appears in DOM
+      if (typeof MutationObserver !== 'undefined') {
+        const observer = new MutationObserver((_mutations, obs) => {
+          const el = document.getElementById(uid);
+          if (el) {
+            obs.disconnect();
+            console.log('[lsxfull] element found via MutationObserver');
+            renderLsxFull(el);
+          }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        // Fallback timeout
+        setTimeout(() => {
+          observer.disconnect();
+          const el = document.getElementById(uid);
+          if (el && el.textContent?.includes('Loading')) {
+            console.log('[lsxfull] fallback timeout, calling renderLsxFull');
+            renderLsxFull(el);
+          }
+        }, 5000);
+      }
     });
   };
 };
