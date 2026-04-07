@@ -115,13 +115,9 @@ async function renderLsxFull(el: HTMLElement): Promise<void> {
       const detailJson = await detailRes.json() as PageDetail;
       const rawBody = detailJson.page.revision?.body || '';
       const body = stripFrontmatter(rawBody);
-      const label = page.path.split('/').pop() || page.path;
       const renderedBody = marked.parse(body) as string;
 
-      html += `<div style="margin-bottom:1.5em;border-bottom:1px solid #e0e0e0;padding-bottom:1em;">`;
-      html += `<h3 style="margin:0 0 0.5em;"><a href="${escapeHtml(page.path)}">${escapeHtml(label)}</a></h3>`;
-      html += `<div style="font-size:0.95em;">${renderedBody}</div>`;
-      html += `</div>`;
+      html += renderedBody;
     }
     el.innerHTML = html;
   } catch (err) {
