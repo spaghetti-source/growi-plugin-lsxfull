@@ -98,20 +98,21 @@ async function fetchContent(opts: Record<string, string>): Promise<string> {
 
   if (pages.length === 0) return '<p><em>No subpages found.</em></p>';
 
-  let html = '';
-  for (const page of pages) {
-    const detailRes = await fetch(`/_api/v3/page?pageId=${page._id}`, fetchOpts);
-    if (!detailRes.ok) continue;
-    const detailJson = await detailRes.json() as PageDetail;
-    const rawBody = detailJson.page.revision?.body || '';
-    const body = stripLsxfullBlocks(stripFrontmatter(rawBody));
-    const label = page.path.split('/').pop() || page.path;
-    const renderedBody = marked.parse(body) as string;
+  // Fetch all page details in parallel
+  const details = await Promise.all(
+    pages.map(async (page) => {
+      const detailRes = await fetch(`/_api/v3/page?pageId=${page._id}`, fetchOpts);
+      if (!detailRes.ok) return null;
+      const detailJson = await detailRes.json() as PageDetail;
+      const rawBody = detailJson.page.revision?.body || '';
+      const body = stripLsxfullBlocks(stripFrontmatter(rawBody));
+      const label = page.path.split('/').pop() || page.path;
+      const renderedBody = marked.parse(body) as string;
+      return `<h2><a href="${escapeHtml(page.path)}">${escapeHtml(label)}</a></h2>${renderedBody}`;
+    }),
+  );
 
-    html += `<h2><a href="${escapeHtml(page.path)}">${escapeHtml(label)}</a></h2>`;
-    html += renderedBody;
-  }
-  return html;
+  return details.filter(Boolean).join('');
 }
 
 export function renderInto(el: HTMLElement, code: string): void {
