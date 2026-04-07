@@ -1,5 +1,5 @@
 import config from './package.json';
-import { plugin } from './src/plugin';
+import { LsxFull } from './src/LsxFull';
 
 declare const growiFacade: {
   markdownRenderer?: {
@@ -12,33 +12,35 @@ declare const growiFacade: {
   };
 };
 
+function wrapCode(OriginalCode: React.FunctionComponent<any>) {
+  return function LsxFullCodeWrapper(props: any) {
+    if (props.className === 'language-lsxfull') {
+      return LsxFull({ code: props.children as string });
+    }
+    return OriginalCode(props);
+  };
+}
+
 const activate = (): void => {
-  console.log('[lsxfull] activate called');
-  if (growiFacade == null || growiFacade.markdownRenderer == null) {
-    console.log('[lsxfull] growiFacade not available');
-    return;
-  }
+  if (growiFacade == null || growiFacade.markdownRenderer == null) return;
 
   const { optionsGenerators } = growiFacade.markdownRenderer;
-  console.log('[lsxfull] registering remark plugin');
 
-  // Register for view rendering
   const originalViewOptions = optionsGenerators.customGenerateViewOptions;
   optionsGenerators.customGenerateViewOptions = (...args: unknown[]) => {
     const options = originalViewOptions
       ? originalViewOptions(...args)
       : optionsGenerators.generateViewOptions(...args);
-    options.remarkPlugins.push(plugin as any);
+    options.components.code = wrapCode(options.components.code);
     return options;
   };
 
-  // Register for preview rendering
   const originalPreviewOptions = optionsGenerators.customGeneratePreviewOptions;
   optionsGenerators.customGeneratePreviewOptions = (...args: unknown[]) => {
     const options = originalPreviewOptions
       ? originalPreviewOptions(...args)
       : optionsGenerators.generatePreviewOptions(...args);
-    options.remarkPlugins.push(plugin as any);
+    options.components.code = wrapCode(options.components.code);
     return options;
   };
 };
