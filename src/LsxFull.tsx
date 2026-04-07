@@ -32,6 +32,10 @@ function stripFrontmatter(body: string): string {
   return body;
 }
 
+function stripLsxfullBlocks(body: string): string {
+  return body.replace(/```lsxfull\n[\s\S]*?```/g, '').trim();
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -100,7 +104,7 @@ async function fetchContent(opts: Record<string, string>): Promise<string> {
     if (!detailRes.ok) continue;
     const detailJson = await detailRes.json() as PageDetail;
     const rawBody = detailJson.page.revision?.body || '';
-    const body = stripFrontmatter(rawBody);
+    const body = stripLsxfullBlocks(stripFrontmatter(rawBody));
     const label = page.path.split('/').pop() || page.path;
     const renderedBody = marked.parse(body) as string;
 
