@@ -116,7 +116,9 @@ async function renderLsxFull(el: HTMLElement): Promise<void> {
       const rawBody = detailJson.page.revision?.body || '';
       const body = stripFrontmatter(rawBody);
       const renderedBody = marked.parse(body) as string;
+      const label = page.path.split('/').pop() || page.path;
 
+      html += `<h2><a href="${escapeHtml(page.path)}">${escapeHtml(label)}</a></h2>`;
       html += renderedBody;
     }
     el.innerHTML = html;
@@ -140,7 +142,8 @@ export const plugin: Plugin = function () {
 
       const uid = `lsxfull-${Math.random().toString(36).substring(2, 10)}`;
 
-      // Replace node content — clear children/value to prevent directive text from rendering
+      // Change type to prevent Growi from rendering the directive text
+      n.type = 'paragraph';
       n.children = [];
       (n as any).value = '';
 
