@@ -8,9 +8,7 @@ interface PageItem {
 interface PageDetail {
   page: {
     path: string;
-    revision?: {
-      body?: string;
-    };
+    revision?: { body?: string };
   };
 }
 
@@ -28,8 +26,7 @@ function parseOptions(code: string): Record<string, string> {
 function stripFrontmatter(body: string): string {
   if (!body.startsWith('---')) return body;
   const parts = body.split('---', 3);
-  if (parts.length >= 3) return parts[2].trim();
-  return body;
+  return parts.length >= 3 ? parts[2].trim() : body;
 }
 
 function stripLsxfullBlocks(body: string): string {
@@ -37,11 +34,7 @@ function stripLsxfullBlocks(body: string): string {
 }
 
 function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 async function resolveCurrentPagePath(): Promise<string> {
@@ -49,8 +42,7 @@ async function resolveCurrentPagePath(): Promise<string> {
   if (/^[0-9a-f]{24}$/.test(pathname)) {
     const res = await fetch(`/_api/v3/page?pageId=${pathname}`, { credentials: 'same-origin' });
     if (res.ok) {
-      const data = await res.json();
-      const path = data.page?.path;
+      const path = (await res.json()).page?.path;
       if (path) return path;
     }
   }
@@ -79,36 +71,33 @@ async function fetchContent(opts: Record<string, string>): Promise<string> {
   );
   if (!listRes.ok) return `<p style="color:#c00">lsxfull: failed to list pages (${listRes.status})</p>`;
 
-  const listJson = await listRes.json() as { pages: PageItem[] };
-  let pages = listJson.pages || [];
+  let pages = ((await listRes.json()) as { pages: PageItem[] }).pages || [];
 
+  // Filter by depth and exclude self
   if (depth > 0) {
     const baseDepth = basePath.split('/').filter(Boolean).length;
-    pages = pages.filter((p: PageItem) => {
-      const pageDepth = p.path.split('/').filter(Boolean).length;
-      return pageDepth - baseDepth <= depth;
+    pages = pages.filter((p) => {
+      const d = p.path.split('/').filter(Boolean).length - baseDepth;
+      return d > 0 && d <= depth;
     });
+  } else {
+    pages = pages.filter((p) => p.path !== basePath);
   }
 
-  // Exclude the current page itself from results
-  pages = pages.filter((p: PageItem) => p.path !== basePath);
-
-  pages.sort((a: PageItem, b: PageItem) => a.path.localeCompare(b.path));
+  pages.sort((a, b) => a.path.localeCompare(b.path));
   if (reverse) pages.reverse();
 
   if (pages.length === 0) return '<p><em>No subpages found.</em></p>';
 
-  // Fetch all page details in parallel
   const details = await Promise.all(
     pages.map(async (page) => {
-      const detailRes = await fetch(`/_api/v3/page?pageId=${page._id}`, fetchOpts);
-      if (!detailRes.ok) return null;
-      const detailJson = await detailRes.json() as PageDetail;
-      const rawBody = detailJson.page.revision?.body || '';
+      const res = await fetch(`/_api/v3/page?pageId=${page._id}`, fetchOpts);
+      if (!res.ok) return null;
+      const rawBody = ((await res.json()) as PageDetail).page.revision?.body || '';
       const body = stripLsxfullBlocks(stripFrontmatter(rawBody));
+      if (!body) return null;
       const label = page.path.split('/').pop() || page.path;
-      const renderedBody = marked.parse(body) as string;
-      return `<h2><a href="${escapeHtml(page.path)}">${escapeHtml(label)}</a></h2>${renderedBody}`;
+      return `<h2><a href="${escapeHtml(page.path)}">${escapeHtml(label)}</a></h2>${marked.parse(body)}`;
     }),
   );
 
@@ -118,21 +107,13 @@ async function fetchContent(opts: Record<string, string>): Promise<string> {
 export function renderInto(el: HTMLElement, code: string): void {
   const opts = parseOptions(code);
   fetchContent(opts).then((html) => {
-    // Strategy A: restyle parent pre to look like normal content
     const pre = el.closest('pre') as HTMLElement | null;
-    if (pre) {
-      pre.style.cssText = 'all:unset;display:block;';
-    }
-
-    // Strategy B: replace pre entirely with a plain div
-    // (Applied simultaneously — if A works visually, B is redundant but harmless)
     if (pre && pre.parentElement) {
       const wrapper = document.createElement('div');
       wrapper.className = 'lsxfull-content';
       wrapper.innerHTML = html;
       pre.replaceWith(wrapper);
     } else {
-      // Fallback: just set innerHTML on our element
       el.style.cssText = 'all:unset;display:block;';
       el.innerHTML = html;
     }
