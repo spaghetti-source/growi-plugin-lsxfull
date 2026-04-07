@@ -42,28 +42,52 @@ function stripFrontmatter(body: string): string {
   return body;
 }
 
+async function resolveCurrentPagePath(): Promise<string> {
+  // Growi URLs use page IDs: /64a1b2c3... — need to resolve to actual path
+  const pathname = decodeURIComponent(window.location.pathname).replace(/^\//, '');
+  console.log('[lsxfull] resolving pathname:', pathname);
+
+  // If it looks like a MongoDB ObjectID (24 hex chars), fetch the page to get path
+  if (/^[0-9a-f]{24}$/.test(pathname)) {
+    console.log('[lsxfull] pathname is a pageId, fetching page to resolve path');
+    const res = await fetch(`/_api/v3/page?pageId=${pathname}`, { credentials: 'same-origin' });
+    if (res.ok) {
+      const data = await res.json();
+      const path = data.page?.path;
+      console.log('[lsxfull] resolved pageId to path:', path);
+      if (path) return path;
+    }
+    console.error('[lsxfull] failed to resolve pageId:', pathname);
+  }
+
+  // Otherwise assume it's already a path
+  return '/' + pathname;
+}
+
 async function renderLsxFull(el: HTMLElement): Promise<void> {
   const depth = parseInt(el.dataset.depth || '1', 10);
   const reverse = el.dataset.reverse === 'true';
   const pathAttr = el.dataset.path || '';
 
-  // Determine base path
-  let basePath: string;
-  if (pathAttr === '.' || pathAttr === '') {
-    // Use current page path from URL
-    basePath = decodeURIComponent(window.location.pathname);
-  } else if (pathAttr.startsWith('/')) {
-    basePath = pathAttr;
-  } else {
-    // Relative path
-    const currentPath = decodeURIComponent(window.location.pathname);
-    basePath = currentPath.replace(/\/$/, '') + '/' + pathAttr;
-  }
+  console.log('[lsxfull] renderLsxFull called, pathAttr:', pathAttr, 'depth:', depth, 'reverse:', reverse);
 
   const fetchOpts: RequestInit = { credentials: 'same-origin' };
 
+  // Determine base path
+  let basePath: string;
+  if (pathAttr === '.' || pathAttr === '') {
+    basePath = await resolveCurrentPagePath();
+  } else if (pathAttr.startsWith('/')) {
+    basePath = pathAttr;
+  } else {
+    const currentPath = await resolveCurrentPagePath();
+    basePath = currentPath.replace(/\/$/, '') + '/' + pathAttr;
+  }
+  console.log('[lsxfull] resolved basePath:', basePath);
+
   try {
-    console.log('[lsxfull] fetching list for', basePath);
+    const listUrl = `/_api/v3/pages/list?path=${encodeURIComponent(basePath)}&limit=200`;
+    console.log('[lsxfull] fetching list:', listUrl);
     const listRes = await fetch(`/_api/v3/pages/list?path=${encodeURIComponent(basePath)}&limit=200`, fetchOpts);
     if (!listRes.ok) {
       el.innerHTML = `<p style="color:red">lsxfull: failed to list pages (${listRes.status})</p>`;
