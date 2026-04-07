@@ -60,14 +60,18 @@ async function renderLsxFull(el: HTMLElement): Promise<void> {
     basePath = currentPath.replace(/\/$/, '') + '/' + pathAttr;
   }
 
+  const fetchOpts: RequestInit = { credentials: 'same-origin' };
+
   try {
-    const listRes = await fetch(`/_api/v3/pages/list?path=${encodeURIComponent(basePath)}&limit=200`);
+    console.log('[lsxfull] fetching list for', basePath);
+    const listRes = await fetch(`/_api/v3/pages/list?path=${encodeURIComponent(basePath)}&limit=200`, fetchOpts);
     if (!listRes.ok) {
       el.innerHTML = `<p style="color:red">lsxfull: failed to list pages (${listRes.status})</p>`;
       return;
     }
     const listJson = await listRes.json() as { pages: PageItem[] };
     let pages = listJson.pages || [];
+    console.log('[lsxfull] found', pages.length, 'pages');
 
     // Filter by depth
     if (depth > 0) {
@@ -76,6 +80,7 @@ async function renderLsxFull(el: HTMLElement): Promise<void> {
         const pageDepth = p.path.split('/').filter(Boolean).length;
         return pageDepth - baseDepth <= depth;
       });
+      console.log('[lsxfull] after depth filter:', pages.length, 'pages');
     }
 
     // Sort by path
@@ -90,12 +95,15 @@ async function renderLsxFull(el: HTMLElement): Promise<void> {
     // Fetch and render each page
     let html = '';
     for (const page of pages) {
-      const detailRes = await fetch(`/_api/v3/page?pageId=${page._id}`);
+      console.log('[lsxfull] fetching detail for', page.path, page._id);
+      const detailRes = await fetch(`/_api/v3/page?pageId=${page._id}`, fetchOpts);
+      console.log('[lsxfull] detail response:', detailRes.status);
       if (!detailRes.ok) continue;
       const detailJson = await detailRes.json() as PageDetail;
       const rawBody = detailJson.page.revision?.body || '';
       const body = stripFrontmatter(rawBody);
       const label = page.path.split('/').pop() || page.path;
+      console.log('[lsxfull] page', label, 'body length:', body.length);
 
       html += `<div class="lsxfull-entry" style="margin-bottom:1.5em;border-bottom:1px solid #eee;padding-bottom:1em;">`;
       html += `<h3 style="margin:0 0 0.5em;"><a href="${escapeHtml(page.path)}">${escapeHtml(label)}</a></h3>`;
@@ -104,6 +112,7 @@ async function renderLsxFull(el: HTMLElement): Promise<void> {
     }
     el.innerHTML = html;
   } catch (err) {
+    console.error('[lsxfull] error:', err);
     el.innerHTML = `<p style="color:red">lsxfull: ${escapeHtml(String(err))}</p>`;
   }
 }
